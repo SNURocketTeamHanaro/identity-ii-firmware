@@ -34,17 +34,15 @@
  *      Hanaro, SNU
  ***************************************************************************/
 
-#include <stdio.h>
-
-#include <SD.h>
 #include <Wire.h>
 #include <SPI.h>
+//#include <SD.h>
 #include <SoftwareSerial.h>
 
 /* External libraries for peripherals */
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BMP280.h>
-#include <FaBo9Axis.h>
+#include <FaBo9Axis_MPU9250.h>
 
 
 /* Threshold altitude for deployment of parachutes */
@@ -100,12 +98,12 @@ typedef union data_t {
 data_t data[MAX_DATA_NUM];      /* Cache memory for acquired data */
 
 
-SoftwareSerial xBee(12, 11);    /* RX, TX */
+// SoftwareSerial xBee(12, 11);    /* RX, TX */
 FaBo9Axis fabo_9axis;           /* I2C */
 Adafruit_BMP280 bmp;            /* I2C */
 
-File file_sd;
-char file_name[20];
+// File file_sd;
+// char file_name[20];
 uint32_t datanum = 0;
 uint32_t save_cycle = 0;
 
@@ -124,11 +122,11 @@ uint32_t para_main = 0;
 
 void setup() {
     /* Serial communication for debug/communication begin */
-    // Serial.begin(115200);
-    xBee.begin(38400);  /* Baud higher than 38400 may cause data loss in some Arduinos */
+    Serial.begin(115200);
+    // xBee.begin(38400);  /* Baud higher than 38400 may cause data loss in some Arduinos */
     delay(3000);        /* For Leonardo/Micro */
-    // Serial.println("[  WORK] INIT CONF");
-    xBee.print("[  WORK] INIT CONF\r\n");
+    Serial.println("[  WORK] INIT CONF");
+    // xBee.print("[  WORK] INIT CONF\r\n");
 
     Wire.begin();
 
@@ -145,64 +143,64 @@ void setup() {
     /* Configure MPU9250 sensor */
     if (fabo_9axis.begin()) {
         fabo_9axis.configMPU9250(MPU9250_GFS_1000, MPU9250_AFS_16G);
-        // Serial.println("[STATUS] CONF: FaBo 9Axis I2C Brick");
-        xBee.print("[STATUS] CONF: FaBo 9Axis I2C Brick\r\n");
+        Serial.println("[STATUS] CONF: FaBo 9Axis I2C Brick");
+        // xBee.print("[STATUS] CONF: FaBo 9Axis I2C Brick\r\n");
     } else {
-        // Serial.println("[ ERROR] NO FaBo 9Axis I2C Brick");
-        xBee.print("[ ERROR] NO FaBo 9Axis I2C Brick\r\n");
+        Serial.println("[ ERROR] NO FaBo 9Axis I2C Brick");
+        // xBee.print("[ ERROR] NO FaBo 9Axis I2C Brick\r\n");
         while (1)
             ; // Die here
     }
 
     /* Configure BMP280 sensor */
     if (bmp.begin()) {
-        // Serial.println("[STATUS] CONF: BMP 280");
-        xBee.print("[STATUS] Configured: BMP 280.\r\n");
+        Serial.println("[STATUS] CONF: BMP 280");
+        // xBee.print("[STATUS] Configured: BMP 280.\r\n");
     } else {
-        // Serial.println("[ ERROR] NO BMP280 (Check wiring!)");
-        xBee.print("[ ERROR] Device error: BMP280 sensor. (Check wiring!)\r\n");
+        Serial.println("[ ERROR] NO BMP280 (Check wiring!)");
+        // xBee.print("[ ERROR] Device error: BMP280 sensor. (Check wiring!)\r\n");
         while (1)
             ; // Die here
     }
 
     /* Read altitude out for calibration */
     float tmp1;
-    // Serial.print("[  WORK] DUMP INIT ALT: ");
-    xBee.print("[  WORK] DUMP INIT ALT: ");
+    Serial.print("[  WORK] DUMP INIT ALT: ");
+    // xBee.print("[  WORK] DUMP INIT ALT: ");
     for (uint32_t i = 0; i < INIT_ALT_DUMP_COUNT; ++i) {
         delay(100);
         tmp1 = bmp.readAltitude();
-        // Serial.print(tmp1);
-        // Serial.print(" ");
-        xBee.print(tmp1);
-        xBee.print(" ");
+        Serial.print(tmp1);
+        Serial.print(" ");
+        // xBee.print(tmp1);
+        // xBee.print(" ");
     }
-    // Serial.print("\n");
-    xBee.print("\r\n");
+    Serial.print("\n");
+    // xBee.print("\r\n");
 
     /* Evaluate initial altitude offset for calibration */
     float tmp2;
     float calc1 = 0;
     float calc2 = 0;
     float ax, ay, az;
-    // Serial.print("[  WORK] EVAL INIT ALT: ");
-    xBee.print("[  WORK] EVAL INIT ALT: ");
+    Serial.print("[  WORK] EVAL INIT ALT: ");
+    // xBee.print("[  WORK] EVAL INIT ALT: ");
     for (uint32_t i = 0; i < INIT_ALT_COUNT; ++i) {
         delay(100);
         fabo_9axis.readAccelXYZ(&ax, &ay, &az);
         calc1 += (tmp1 = bmp.readAltitude());
         calc2 += (tmp2 = sqrt(ax * ax + ay * ay + az * az));
-        // Serial.print(tmp1);
-        // Serial.print(" ");
-        // Serial.print(tmp2);
-        // Serial.print("\t");
-        xBee.print(tmp1);
-        xBee.print(" ");
-        xBee.print(tmp2);
-        xBee.print("\t");
+        Serial.print(tmp1);
+        Serial.print(" ");
+        Serial.print(tmp2);
+        Serial.print("\t");
+        // xBee.print(tmp1);
+        // xBee.print(" ");
+        // xBee.print(tmp2);
+        // xBee.print("\t");
     }
-    // Serial.print("\n");
-    xBee.print("\r\n");
+    Serial.print("\n");
+    // xBee.print("\r\n");
 
     calc1 /= INIT_ALT_COUNT;
     max_altitude = last_altitude = ini_altitude = calc1;
@@ -210,44 +208,44 @@ void setup() {
     calc2 /= INIT_ALT_COUNT;
     a_threshold = calc2 + A_THRESHOLD - 1;
 
-    // Serial.print("[  DATA] INIT ALT: ");
-    // Serial.println(ini_altitude);
-    xBee.print("[  DATA] INIT ALT: ");
-    xBee.print(ini_altitude);
-    xBee.print("\r\n");
+    Serial.print("[  DATA] INIT ALT: ");
+    Serial.println(ini_altitude);
+    // xBee.print("[  DATA] INIT ALT: ");
+    // xBee.print(ini_altitude);
+    // xBee.print("\r\n");
 
-    // Serial.print("[  DATA] INIT ACC: ");
-    // Serial.println(calc2);
-    xBee.print("[  DATA] INIT ACC: ");
-    xBee.print(calc2);
-    xBee.print("\r\n");
+    Serial.print("[  DATA] INIT ACC: ");
+    Serial.println(calc2);
+    // xBee.print("[  DATA] INIT ACC: ");
+    // xBee.print(calc2);
+    // xBee.print("\r\n");
 
-    // Serial.print("[  DATA] MIN ACC FOR PARA EJECT: ");
-    // Serial.println(a_threshold);
-    xBee.print("[  DATA] MIN ACC FOR PARA EJECT: ");
-    xBee.print(a_threshold);
-    xBee.print("\r\n");
+    Serial.print("[  DATA] MIN ACC FOR PARA EJECT: ");
+    Serial.println(a_threshold);
+    // xBee.print("[  DATA] MIN ACC FOR PARA EJECT: ");
+    // xBee.print(a_threshold);
+    // xBee.print("\r\n");
 
-    /* Configure microSD card adapter */
+    /* Configure microSD card adapter
     while (1) {
         if (SD.begin(4)) {
             // Open a new file
             sprintf(file_name, "%lu.txt\0", millis());
             file_sd = SD.open(file_name, FILE_WRITE); //O_CREAT | O_WRITE);
-            // Serial.print("[STATUS] FILE: ");
-            // Serial.println(file_name);
-            xBee.print("[STATUS] FILE: ");
-            xBee.print(file_name);
-            xBee.print("\r\n");
+            Serial.print("[STATUS] FILE: ");
+            Serial.println(file_name);
+            //xBee.print("[STATUS] FILE: ");
+            //xBee.print(file_name);
+            //xBee.print("\r\n");
 
-            // Serial.println("[STATUS] BEGIN LOG");
-            xBee.print("[STATUS] BEGIN LOG\r\n");
+            Serial.println("[STATUS] BEGIN LOG");
+            //xBee.print("[STATUS] BEGIN LOG\r\n");
             break;
         } else {
-            // Serial.println("[ ERROR] NO SD card");
-            xBee.print("[ ERROR] NO SD card\r\n");
+            Serial.println("[ ERROR] NO SD card");
+            //xBee.print("[ ERROR] NO SD card\r\n");
         }
-    }
+    }*/
 
     /* Main loop
      * To optimize performance in the Arduino chip, main loop does not reside
@@ -267,10 +265,10 @@ void setup() {
 
             /* Retrieve rest of the data */
             float gx, gy, gz;
-            //float mx, my, mz;
+            float mx, my, mz;
             float temp;
             fabo_9axis.readGyroXYZ(&gx, &gy, &gz);
-            //fabo_9axis.readMagnetXYZ(&mx, &my, &mz);
+            fabo_9axis.readMagnetXYZ(&mx, &my, &mz);
             fabo_9axis.readTemperature(&temp);
 
             /* Data acquisition in the in-body DAQ */
@@ -361,11 +359,11 @@ void setup() {
             data[datanum].data_packet.g[0] = gx;
             data[datanum].data_packet.g[1] = gy;
             data[datanum].data_packet.g[2] = gz;
-            // data[datanum].data_packet.m[0] = mx;
-            // data[datanum].data_packet.m[1] = my;
-            // data[datanum].data_packet.m[2] = mz;
-            // data[datanum].data_packet.temp = temp;
-            // data[datanum].data_packet.press = press;
+            data[datanum].data_packet.m[0] = mx;
+            data[datanum].data_packet.m[1] = my;
+            data[datanum].data_packet.m[2] = mz;
+            data[datanum].data_packet.temp = temp;
+            //data[datanum].data_packet.press = press;
             data[datanum].data_packet.current_time = curr_time;
             data[datanum].data_packet.alt_press = pres_altitude;
             data[datanum].data_packet.alt_max = max_altitude;
@@ -375,25 +373,25 @@ void setup() {
             /* Communication mode 1: write to the serial directly */
 
             /* Send data to the USB serial */
-            /*
+            
             Serial.write('$'); // Start character
             Serial.write('$'); // Start character
             Serial.write(data[datanum].data_packet_bytestring,
                 sizeof(data[datanum].data_packet_bytestring));
             Serial.write('#'); // End character
             Serial.write('#'); // End character
-            */
+            
 
             /* Send data to ZigBee connection
-             * This cause much error due to serial buffer overflow */
-            /*
+             * This cause much error due to serial buffer overflow
+            
             Serial.write('$'); // Start character
             Serial.write('$'); // Start character
             xBee.write(data[datanum].data_packet_bytestring,
                 sizeof(data[datanum].data_packet_bytestring));
             Serial.write('#'); // End character
-            Serial.write('#'); // End character
-            */
+            Serial.write('#'); // End character                  */ 
+            
 
 
             /* Communication mode 2: Send minimal data to serial connction
@@ -421,7 +419,8 @@ void setup() {
              * It is noticed that the altimeter value does not change so often
              * We send the data only the altitude value is changed, thus
              * prevent overflow of buffer in the XBee module */
-            xBee.flush(); /* Prevent serial buffer to overflow */
+            /*
+            xBee.flush(); // Prevent serial buffer to overflow
             if (last_altitude != pres_altitude) {
                 xBee.print(curr_time);
                 xBee.print(' ');
@@ -437,27 +436,27 @@ void setup() {
                 xBee.print("\r\n");
                 last_altitude = pres_altitude;
             }
-
+            */
             /* Do this for next data slot in the free cache */
             ++datanum;
         }
 
         /* Begin save phase after every fixed time
          * Assume no problem with either the SD card or the connection */
-        if (datanum == MAX_DATA_NUM - 1) {
+        // if (datanum == MAX_DATA_NUM - 1) {
 
             /* Write the whole data. This part is very important since the
              * format should be have a perfect align with the Arduino code and
              * the decoder. Start and end characters are chosen carefully not
              * to overlap the data to corrupt it. */
-            for (uint32_t i = 0; i < datanum; ++i) {
-                file_sd.write('$'); /* Start character */
-                file_sd.write('$'); /* Start character */
-                file_sd.write(data[i].data_packet_bytestring, sizeof(struct data_packet_t));
-                file_sd.write('#'); /* End character */
-                file_sd.write('#'); /* End character */
+        //    for (uint32_t i = 0; i < datanum; ++i) {
+        //        file_sd.write('$'); /* Start character */
+        //        file_sd.write('$'); /* Start character */
+        //        file_sd.write(data[i].data_packet_bytestring, sizeof(struct data_packet_t));
+        //        file_sd.write('#'); /* End character */
+        //        file_sd.write('#'); /* End character */
                 //memset(&data[i], '\0', sizeof(struct data_packet_t));
-            }
+        //  }
 
             /* Reset data buffer; go closer to the next saving cycle */
             datanum = 0;
@@ -467,15 +466,15 @@ void setup() {
             if (save_cycle >= SAVE_CYCLE) {
                 save_cycle = 0;
 
-                file_sd.close();
+                //file_sd.close();
                 //file_sd.flush();
-                file_sd = SD.open(file_name, FILE_WRITE); //O_CREAT | O_WRITE);
+                //file_sd = SD.open(file_name, FILE_WRITE); //O_CREAT | O_WRITE);
 
-                // Serial.print("[STATUS] Data saved at ");
-                // Serial.print(millis());
-                // Serial.println("ms.");
+                Serial.print("[STATUS] Data saved at ");
+                Serial.print(millis());
+                Serial.println("ms.");
             }
-        }
+        //}
     }
 }
 

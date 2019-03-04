@@ -24,7 +24,7 @@ from ctypes import (Union, Structure, c_uint8, c_uint32, c_float, cast, POINTER)
 import sys
 
 # Connection attributes
-port = 'COM8'
+port = 'COM8' #ttyACM0
 baud = 115200
 timeout = 1
 packetSize = 53
